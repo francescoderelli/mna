@@ -5,24 +5,32 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Confronto premi RA (MNA + Inc/Prod)</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px;max-width:920px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px;max-width:980px}
     .box{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}
-    label{display:block;margin:10px 0 6px;font-weight:700}
+    label{display:block;margin:10px 0 6px;font-weight:800}
     input[type=file]{width:100%}
-    button{padding:10px 14px;border:0;border-radius:10px;background:#111;color:#fff;font-weight:800;cursor:pointer}
+    button{padding:10px 14px;border:0;border-radius:10px;background:#111;color:#fff;font-weight:900;cursor:pointer}
     button:disabled{opacity:.45;cursor:not-allowed}
     .status{margin-top:12px;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
     .ok{color:#0a7a2f}
     .err{color:#b00020}
-    .hint{color:#555;font-size:14px;line-height:1.4}
+    .hint{color:#555;font-size:14px;line-height:1.45}
     .checks{margin-top:10px;font-family:ui-monospace,Menlo,Consolas,monospace}
     .checks div{margin:4px 0}
+    .note{border:1px solid #f2c200;background:#fff8d1;border-radius:12px;padding:12px;margin-top:12px}
+    .note b{display:block;margin-bottom:6px}
+    h1{margin:0 0 6px 0}
+    h3{margin:0 0 8px 0}
+    p{margin:10px 0}
+    code{background:#f6f6f6;padding:2px 6px;border-radius:8px}
   </style>
 </head>
 <body>
 
   <h1>Confronto premi RA</h1>
-  <p class="hint">Tutto gira nel browser. I file non vengono caricati online.</p>
+  <div class="hint">
+    Tutto gira nel browser. I file non vengono caricati online.
+  </div>
 
   <div class="box">
     <label>1) Premi_Mensili_x_Sede (xlsx)</label>
@@ -35,11 +43,38 @@
     <input id="fileObi" type="file" accept=".xlsx" />
 
     <div class="checks" id="checks"></div>
+
+    <div class="note">
+      <b>⚠️ Nota importante sui nomi sede</b>
+      I nomi delle sedi tra <b>P&amp;L Gestionale</b> e <b>Tabella riepilogo</b> possono essere diversi.
+      Se selezioni due sedi “equivalenti” ma con nomi non allineati, il sistema può bloccarsi con errore di coerenza.
+      In quel caso, riesporta i file assicurandoti che la sede scelta sia quella corretta in entrambi i report.
+    </div>
   </div>
 
   <div class="box">
     <button id="btnRun" disabled>Genera Excel confronto</button>
     <div id="status" class="status"></div>
+  </div>
+
+  <div class="box">
+    <h3>Dove prendere i file</h3>
+    <div class="hint">
+      <p><b>Premi_Mensili_x_Sede (xlsx)</b><br>
+      Dashboard tecnica → Premi → tab <b>Grafici</b> → seleziona la sede → vai in fondo in
+      <b>“Premi Mensili x Sede e Tipo Risorsa”</b> → estrapola Excel.</p>
+
+      <p><b>Sum_of_Importo (xlsx)</b><br>
+      Dashboard direzionale → Obiettivo sedi → tab <b>P&amp;L Gestionale</b> → selezionare sede →
+      impostare data di inizio <b>01/01/2025</b> → estrapolare Excel con i risultati dei vari mesi.</p>
+
+      <p><b>Sum_of_Obiettivoprev (xlsx)</b><br>
+      Dashboard direzionale → Obiettivo sedi → tab <b>Tabella riepilogo</b> → selezionare sede
+      (attenzione: nomi sede diversi rispetto al P&amp;L) → andare nel secondo riquadro dove c’è scritto
+      <b>“Gli obiettivi vengono conteggiati al più fino al mese in corso compreso”</b> → estrapolare Excel.</p>
+
+      <p>Tip: i file devono essere in formato <code>.xlsx</code> e scaricati direttamente dal gestionale (non “copiati/incollati” in altri Excel).</p>
+    </div>
   </div>
 
   <!-- SheetJS (lettura xlsx) -->
