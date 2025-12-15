@@ -403,4 +403,89 @@ btnRun.addEventListener("click", async () => {
     for (const sede of sedi) {
       const rowsSede = outRows.filter(x => x.Sede === sede).sort((a,b) => a.Mese - b.Mese);
 
-      const mnaTotal = rowsSede.reduce((acc, x) => acc + (Number.isFinite(x.M
+      const mnaTotal = rowsSede.reduce((acc, x) => acc + (Number.isFinite(x.MNA) ? x.MNA : 0), 0);
+      const target = 0.05 * mnaTotal;
+
+      const sumPos = rowsSede.reduce((acc, x) => acc + ((Number.isFinite(x.MNA) && x.MNA > 0) ? x.MNA : 0), 0);
+
+      for (const x of rowsSede) {
+        x.BaseNew = 0;
+        if (sumPos > 0 && Number.isFinite(x.MNA) && x.MNA > 0) {
+          x.BaseNew = target * (x.MNA / sumPos);
+        }
+        const kVal = Number.isFinite(x.K) ? x.K : 0;
+        x.PremioNuovo = (x.BaseNew || 0) * kVal;
+        x.DeltaCore = x.PremioNuovo - (x.VecchioCore || 0);
+      }
+    }
+
+    // build excel
+    const wbOut = new ExcelJS.Workbook();
+    const ws = wbOut.addWorksheet("Confronto");
+
+    const headers = [
+      "Anno","Mese","Sede",
+      "Prodotto","Fatturato","Incassato",
+      "MNA","Inc/Prod","K",
+      "Addon","Vecchio core","Premio nuovo (core)","Δ core"
+    ];
+    ws.addRow(headers);
+    ws.getRow(1).font = { bold: true };
+
+    const GREEN = "#C6EFCE";
+    const RED   = "#FFC7CE";
+
+    const sorted = outRows.sort((a,b) => (a.Anno-b.Anno) || (a.Mese-b.Mese) || a.Sede.localeCompare(b.Sede));
+    for (const x of sorted) {
+      const row = ws.addRow([
+        x.Anno, x.Mese, x.Sede,
+        x.Prodotto, x.Fatturato, x.Incassato,
+        x.MNA, x.IncProd, x.K,
+        x.Addon, x.VecchioCore, x.PremioNuovo, x.DeltaCore
+      ]);
+
+      setInt(row.getCell(1));
+      setInt(row.getCell(2));
+      setMoney(row.getCell(4));
+      setMoney(row.getCell(5));
+      setMoney(row.getCell(6));
+      setMoney(row.getCell(7));
+      setPercent(row.getCell(8));
+      setK(row.getCell(9));
+      setMoney(row.getCell(10));
+      setMoney(row.getCell(11));
+      setMoney(row.getCell(12));
+      setMoney(row.getCell(13));
+
+      // semaforo + premio verde
+      if (Number.isFinite(x.MNA)) setFill(row.getCell(7), x.MNA > 0 ? GREEN : RED);
+      if (Number.isFinite(x.IncProd)) setFill(row.getCell(8), x.IncProd >= 0.7 ? GREEN : RED);
+      if (Number.isFinite(x.K)) setFill(row.getCell(9), x.K > 0 ? GREEN : RED);
+      if (Number.isFinite(x.PremioNuovo) && x.PremioNuovo > 0) setFill(row.getCell(12), GREEN);
+    }
+
+    autoFitWorksheet(ws);
+    ws.getColumn(3).width = Math.max(ws.getColumn(3).width || 0, 18);
+
+    const safe = singleSede.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
+    const outName = `confronto_${safe}_ra_mna.xlsx`;
+
+    const buffer = await wbOut.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = outName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+
+    setStatus(`✅ Creato: ${outName}`, "ok");
+    readyBtn(true);
+  } catch (e) {
+    console.error(e);
+    setStatus("❌ Errore: " + (e?.message || String(e)), "err");
+    readyBtn(false);
+  }
+});
