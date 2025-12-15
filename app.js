@@ -5,6 +5,9 @@ const btnRun   = document.getElementById("btnRun");
 const statusEl = document.getElementById("status");
 const checksEl = document.getElementById("checks");
 
+// evita race condition: solo l’ultima validazione può abilitare/disabilitare
+let VALIDATION_SEQ = 0;
+
 function setStatus(msg, kind="") {
   statusEl.className = "status " + (kind || "");
   statusEl.textContent = msg;
@@ -17,6 +20,7 @@ function setChecks(lines) {
     checksEl.appendChild(div);
   }
 }
+function readyBtn(enabled) { btnRun.disabled = !enabled; }
 
 function normStr(v) { return (v ?? "").toString().trim(); }
 function toNum(v) {
@@ -28,9 +32,6 @@ function assert(cond, msg) { if (!cond) throw new Error(msg); }
 
 function isReadyFiles() {
   return !!(elPremi.files?.[0] && elSum.files?.[0] && elObi.files?.[0]);
-}
-function readyBtn(enabled) {
-  btnRun.disabled = !enabled;
 }
 
 function readXlsxToAOA(file) {
@@ -50,7 +51,7 @@ function readXlsxToAOA(file) {
 }
 
 // ============================================================
-// VALIDAZIONI (v1.1) - 1 variante gestionale
+// VALIDAZIONI (v1.1)
 // ============================================================
 function validatePremiAOA(aoa) {
   assert(Array.isArray(aoa) && aoa.length > 5, "Premi_Mensili_x_Sede: file vuoto o non leggibile.");
@@ -76,14 +77,14 @@ function validatePremiAOA(aoa) {
 function validateObiettiviAOA(aoa) {
   assert(Array.isArray(aoa) && aoa.length > 5, "Sum_of_Obiettivoprev: file vuoto o non leggibile.");
 
-  // Deve arrivare almeno alla colonna Y (indice 24)
+  // deve arrivare almeno alla colonna Y (indice 24)
   let maxRowLen = 0;
   for (let i = 0; i < Math.min(80, aoa.length); i++) {
     maxRowLen = Math.max(maxRowLen, (aoa[i] || []).length);
   }
   assert(maxRowLen >= 25, "Sum_of_Obiettivoprev: layout non valido (mancano colonne fino a Y).");
 
-  // Deve contenere almeno una riga CORE (colonna G)
+  // deve contenere almeno una riga CORE (colonna G)
   let hasCore = false;
   for (let i = 0; i < aoa.length; i++) {
     const ramo = normStr((aoa[i] || [])[6]).toUpperCase(); // G
@@ -96,7 +97,7 @@ function validateObiettiviAOA(aoa) {
 function validateSumImportoAOA(aoa) {
   assert(Array.isArray(aoa) && aoa.length > 5, "Sum_of_Importo: file vuoto o non leggibile.");
 
-  // Trova "Sezione" in col A
+  // trova "Sezione" in col A
   let headerRow = -1;
   for (let i = 0; i < aoa.length; i++) {
     if (normStr((aoa[i] || [])[0]) === "Sezione") { headerRow = i; break; }
@@ -106,7 +107,7 @@ function validateSumImportoAOA(aoa) {
   const monthsRow = headerRow - 1;
   assert(monthsRow >= 0, "Sum_of_Importo: manca la riga mesi sopra 'Sezione'.");
 
-  // Deve esistere la riga MNA in col B
+  // deve esistere la riga MNA in col B
   let hasMna = false;
   for (let i = 0; i < aoa.length; i++) {
     const label = normStr((aoa[i] || [])[1]).toUpperCase();
@@ -114,7 +115,7 @@ function validateSumImportoAOA(aoa) {
   }
   assert(hasMna, "Sum_of_Importo: non trovo la riga 'MNA - Margine Netto di Area' (colonna B).");
 
-  // ✅ NUOVO: deve esserci lo split mensile completo 1..12 sulle colonne "Importo*"
+  // ✅ deve esserci lo split mensile completo 1..12 sulle colonne "Importo*"
   const header = aoa[headerRow] || [];
   const months = aoa[monthsRow] || [];
 
@@ -288,9 +289,11 @@ function autoFitWorksheet(ws, minW=8, maxW=55, padding=2) {
 }
 
 // ============================================================
-// UI: valida al volo
+// VALIDAZIONE LIVE (con anti-race)
 // ============================================================
 async function validateAllIfPossible() {
+  const mySeq = ++VALIDATION_SEQ;
+
   setStatus("", "");
   setChecks([]);
 
@@ -301,11 +304,14 @@ async function validateAllIfPossible() {
 
   try {
     setStatus("Controllo file...", "");
+
     const [premi, sum, obi] = await Promise.all([
       readXlsxToAOA(elPremi.files[0]),
       readXlsxToAOA(elSum.files[0]),
       readXlsxToAOA(elObi.files[0]),
     ]);
+
+    if (mySeq !== VALIDATION_SEQ) return;
 
     validatePremiAOA(premi.aoa);
     validateSumImportoAOA(sum.aoa);
@@ -320,6 +326,7 @@ async function validateAllIfPossible() {
     setStatus("✅ File OK. Puoi generare l’Excel.", "ok");
     readyBtn(true);
   } catch (e) {
+    if (mySeq !== VALIDATION_SEQ) return;
     setChecks([]);
     setStatus("❌ " + (e?.message || String(e)), "err");
     readyBtn(false);
@@ -354,7 +361,7 @@ btnRun.addEventListener("click", async () => {
     const obiRows   = parseObiettivoprev(obi.aoa);
     const mnaByMonth= parseMnaByMonth(sum.aoa);
 
-    // coerenza sede
+    // coerenza sede (almeno una in comune)
     const sediPremi = new Set(premiRows.map(x => x.Sede));
     const sediObi   = new Set(obiRows.map(x => x.Sede));
     const intersect = [...sediPremi].some(s => sediObi.has(s));
